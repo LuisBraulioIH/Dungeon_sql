@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dungeon SQL Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1>Dungeon SQL</h1>
+
+<section>
+    <h2> Reglamento del juego</h2>
+    <ul>
+        <li>El jugador se mueve usando consultas SQL.</li>
+        <li>Los ataques dependen del resultado del dado.</li>
+        <li>Si el UPDATE afecta 0 filas, el ataque falló.</li>
+        <li>No se permite DROP ni DELETE de tablas.</li>
+    </ul>
+</section>
+
+<section id="manual">
+    <h1> Manual de Comandos del Juego</h1>
+
+    <!-- ================= MOVIMIENTO ================= -->
+    <h2>Movimiento</h2>
+
+    <pre>
+-- Mover al norte
+UPDATE player
+SET current_room = (
+  SELECT north FROM rooms WHERE room_id = current_room
+)
+WHERE (
+  SELECT north FROM rooms WHERE room_id = current_room
+) IS NOT NULL;
+    </pre>
+
+    <pre>
+-- Mover al sur
+UPDATE player
+SET current_room = (
+  SELECT south FROM rooms WHERE room_id = current_room
+)
+WHERE (
+  SELECT south FROM rooms WHERE room_id = current_room
+) IS NOT NULL;
+    </pre>
+
+    <pre>
+-- Mover al este
+UPDATE player
+SET current_room = (
+  SELECT east FROM rooms WHERE room_id = current_room
+)
+WHERE (
+  SELECT east FROM rooms WHERE room_id = current_room
+) IS NOT NULL;
+    </pre>
+
+    <pre>
+-- Mover al oeste
+UPDATE player
+SET current_room = (
+  SELECT west FROM rooms WHERE room_id = current_room
+)
+WHERE (
+  SELECT west FROM rooms WHERE room_id = current_room
+) IS NOT NULL;
+    </pre>
+
+    <!-- ================= INFORMACION ================= -->
+    <h2>ℹInformación</h2>
+
+    <pre>
+-- Ver estado del jugador
+SELECT * FROM player;
+    </pre>
+
+    <pre>
+-- Ver sala actual
+SELECT *
+FROM rooms
+WHERE room_id = (SELECT current_room FROM player);
+    </pre>
+
+    <pre>
+-- Ver enemigos en la sala
+SELECT *
+FROM enemies
+WHERE room_id = (SELECT current_room FROM player);
+    </pre>
+
+    <pre>
+-- Ver items en la sala
+SELECT *
+FROM items
+WHERE room_id = (SELECT current_room FROM player);
+    </pre>
+
+    <!-- ================= COMBATE ================= -->
+    <h2>Combate</h2>
+
+    <pre>
+-- Atacar enemigo (X = enemy_id)
+UPDATE enemies
+SET hp = hp - 20
+WHERE enemy_id = X
+  AND room_id = (SELECT current_room FROM player)
+  AND (
+    SELECT resultado
+    FROM dice
+    WHERE id = FLOOR(RAND() * 6) + 1
+  ) = 'golpe';
+    </pre>
+
+    <pre>
+-- Ataque del enemigo al jugador
+UPDATE player
+SET hp = hp - (
+    SELECT damage
+    FROM enemies
+    WHERE enemy_id = X
+      AND room_id = (SELECT current_room FROM player)
+)
+WHERE EXISTS (
+    SELECT 1
+    FROM enemies
+    WHERE enemy_id = X
+      AND room_id = (SELECT current_room FROM player)
+)
+AND (
+    SELECT resultado
+    FROM dice
+    WHERE id = FLOOR(RAND() * 6) + 1
+) = 'golpe';
+    </pre>
+
+    <!-- ================= ITEMS ================= -->
+    <h2> Items</h2>
+
+    <pre>
+-- Recoger item (lo elimina de la sala)
+DELETE FROM items
+WHERE item_id = X
+  AND room_id = (SELECT current_room FROM player);
+    </pre>
+
+    <pre>
+-- Usar item de curación simple (+20 HP)
+UPDATE player
+SET hp = hp + 20;
+    </pre>
+
+    <!-- ================= DADO ================= -->
+    <h2> Dado</h2>
+
+    <pre>
+-- Ver configuración del dado
+SELECT * FROM dice;
+    </pre>
+
+    <!-- ================= REINICIO ================= -->
+    <h2> Reiniciar Partida</h2>
+
+    <pre>
+UPDATE player
+SET hp = 100,
+    gold = 0,
+    current_room = 1;
+    </pre>
+
+<pre>
+-- Reiniciar todos los items
+DELETE FROM items;
+
+INSERT INTO items (item_id, name, effect, room_id) VALUES
+(1, 'Poción pequeña', 'cura 20 hp', 2),
+(2, 'Poción mediana', 'cura 40 hp', 4),
+(3, 'Poción grande', 'cura 60 hp', 5);
+</pre>
+
+<pre>
+--Reiniciar enemigos
+SET SQL_SAFE_UPDATES = 0;
+
+UPDATE enemies
+SET 
+  hp = CASE name
+    WHEN 'Slime' THEN 30
+    WHEN 'Esqueleto' THEN 50
+    WHEN 'Mimic' THEN 75
+    WHEN 'Mini-jefe' THEN 120
+    WHEN 'Jefe Final' THEN 200
+    ELSE hp
+  END,
+  room_id = CASE name
+    WHEN 'Slime' THEN 2
+    WHEN 'Esqueleto' THEN 3
+    WHEN 'Mimic' THEN 4
+    WHEN 'Mini-jefe' THEN 5
+    WHEN 'Jefe Final' THEN 6
+    ELSE room_id
+  END
+WHERE enemy_id > 0;
+</pre>
+
+</section>
+
+<section>
+    <h2> Consola SQL</h2>
+
+    <textarea id="queryInput" placeholder="Escribe tu query aquí..."></textarea>
+    <br>
+    <button onclick="runQuery()">Ejecutar</button>
+
+    <h3> Resultado</h3>
+    <pre id="result"></pre>
+</section>
+
+<script src="script.js"></script>
+</body>
+</html>
